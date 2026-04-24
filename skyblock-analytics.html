@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skyblock Market Analytics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #181b22;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --accent: #7c6af7;
+    --accent2: #3ecf8e;
+    --accent3: #f59e0b;
+    --danger: #ef4444;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent2);
+    box-shadow: 0 0 8px var(--accent2);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+  }
+
+  .status-pill.live {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  nav {
+    display: flex;
+    gap: 4px;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .nav-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .nav-btn:hover { color: var(--text); border-color: var(--border2); }
+  .nav-btn.active { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+
+  main { padding: 24px 28px; max-width: 1400px; }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Search bar */
+  .search-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+    align-items: center;
+  }
+
+  .search-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--muted); }
+
+  .btn {
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { opacity: 0.85; }
+
+  /* Stat grid */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    transition: border-color 0.15s;
+  }
+
+  .stat-card:hover { border-color: var(--border2); }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .stat-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .stat-up { color: var(--accent2); }
+  .stat-down { color: var(--danger); }
+
+  /* Chart containers */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .chart-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .chart-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(124,106,247,0.15);
+    color: var(--accent);
+    border: 1px solid rgba(124,106,247,0.3);
+  }
+
+  .chart-area { position: relative; width: 100%; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* Table */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .data-table th {
+    text-align: left;
+    padding: 8px 12px;
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+
+  .data-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .data-table tr:hover td { background: var(--surface2); }
+  .data-table tr:last-child td { border-bottom: none; }
+
+  .tag {
+    display: inline-block;
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-family: var(--mono);
+  }
+
+  .tag-bertrand { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+  .tag-cournot  { background: rgba(124,106,247,0.15); color: #a78bfa; border: 1px solid rgba(124,106,247,0.25); }
+  .tag-mono     { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25); }
+
+  /* Loading */
+  .loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 32px 0;
+    justify-content: center;
+  }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-box {
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 8px;
+    padding: 14px 18px;
+    color: #f87171;
+    font-family: var(--mono);
+    font-size: 12px;
+    margin-bottom: 16px;
+  }
+
+  /* Price row coloring */
+  .up { color: var(--accent2); }
+  .down { color: var(--danger); }
+  .neutral { color: var(--muted); }
+
+  /* Econ classifier */
+  .econ-info {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 16px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+
+  .econ-info strong { color: var(--text); }
+
+  .tip-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .tip-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .tip-card .tip-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .tip-card .tip-val {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  select {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .legend-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .inline-code {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--surface2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--accent);
+  }
+
+  .api-block {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .api-block h3 {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .api-url {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent2);
+    word-break: break-all;
+    line-height: 1.6;
+  }
+
+  .api-desc {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 700px) {
+    .two-col { grid-template-columns: 1fr; }
+    .tip-grid { grid-template-columns: 1fr 1fr; }
+    main { padding: 16px; }
+    header, nav { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    SKYBLOCK_ANALYTICS
+  </div>
+  <div class="header-right">
+    <span class="status-pill" id="api-status">CONNECTING...</span>
+    <span class="status-pill" id="last-update">--</span>
+  </div>
+</header>
+
+<nav>
+  <button class="nav-btn active" onclick="switchTab('bazaar', this)">BAZAAR</button>
+  <button class="nav-btn" onclick="switchTab('auctions', this)">AUCTIONS</button>
+  <button class="nav-btn" onclick="switchTab('econ', this)">ECON CLASSIFIER</button>
+  <button class="nav-btn" onclick="switchTab('learn', this)">API GUIDE</button>
+</nav>
+
+<main>
+
+<!-- BAZAAR TAB -->
+<div id="tab-bazaar" class="section active">
+  <div class="search-row">
+    <input class="search-input" id="baz-search" type="text" placeholder="Search item... (e.g. ENCHANTED_SUGAR_CANE)" oninput="filterBazaar()">
+    <select id="baz-sort" onchange="filterBazaar()">
+      <option value="volume">Sort: Volume</option>
+      <option value="spread">Sort: Spread %</option>
+      <option value="price">Sort: Buy Price</option>
+      <option value="movement">Sort: Price Movement</option>
+    </select>
+    <button class="btn primary" onclick="loadBazaar()">REFRESH</button>
+  </div>
+
+  <div id="baz-error" class="error-box" style="display:none"></div>
+
+  <div class="stat-grid" id="baz-stats">
+    <div class="stat-card"><div class="stat-label">ITEMS TRACKED</div><div class="stat-value" id="s-items">—</div></div>
+    <div class="stat-card"><div class="stat-label">AVG BID-ASK SPREAD</div><div class="stat-value" id="s-spread">—</div></div>
+    <div class="stat-card"><div class="stat-label">HIGHEST VOLUME</div><div class="stat-value" id="s-hvol">—</div><div class="stat-sub" id="s-hvol-name">—</div></div>
+    <div class="stat-card"><div class="stat-label">WIDEST SPREAD</div><div class="stat-value" id="s-wsp">—</div><div class="stat-sub" id="s-wsp-name">—</div></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">TOP ITEMS — BUY VS SELL PRICE</span>
+      <span class="chart-badge">LIVE DATA</span>
+    </div>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-dot" style="background:#7c6af7"></div>Buy order (what buyers pay)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3ecf8e"></div>Sell order (what sellers get)</div>
+    </div>
+    <div class="chart-area" style="height:280px">
+      <canvas id="bazChart" role="img" aria-label="Bar chart comparing buy and sell prices for top Bazaar items">Loading...</canvas>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">BID-ASK SPREAD ANALYSIS</span>
+      <span class="chart-badge">BERTRAND SIGNAL</span>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Tight spreads = Bertrand competition (many sellers racing to MC). Wide spreads = market power or thin liquidity.</div>
+    <div class="chart-area" style="height:240px">
+      <canvas id="spreadChart" role="img" aria-label="Scatter plot of bid-ask spread percentage for Bazaar items">Loading...</canvas>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header"><span class="chart-title">ALL ITEMS — LIVE ORDER BOOK</span></div>
+    <div id="baz-loading" class="loading"><div class="spinner"></div>Fetching Bazaar data...</div>
+    <table class="data-table" id="baz-table" style="display:none">
+      <thead>
+        <tr>
+          <th>ITEM</th>
+          <th>BUY PRICE</th>
+          <th>SELL PRICE</th>
+          <th>SPREAD %</th>
+          <th>WEEKLY VOL</th>
+          <th>MARKET TYPE</th>
+        </tr>
+      </thead>
+      <tbody id="baz-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- AUCTIONS TAB -->
+<div id="tab-auctions" class="section">
+  <div class="search-row">
+    <input class="search-input" id="ah-search" type="text" placeholder="Filter by item name..." oninput="filterAH()">
+    <select id="ah-filter" onchange="filterAH()">
+      <option value="all">All types</option>
+      <option value="bin">BIN only</option>
+      <option value="auction">Auction only</option>
+    </select>
+    <button class="btn primary" onclick="loadAuctions()">REFRESH</button>
+  </div>
+
+  <div id="ah-error" class="error-box" style="display:none"></div>
+
+  <div class="stat-grid" id="ah-stats">
+    <div class="stat-card"><div class="stat-label">SALES LOADED</div><div class="stat-value" id="a-count">—</div></div>
+    <div class="stat-card"><div class="stat-label">AVG SALE PRICE</div><div class="stat-value" id="a-avg">—</div></div>
+    <div class="stat-card"><div class="stat-label">HIGHEST SALE</div><div class="stat-value" id="a-high">—</div><div class="stat-sub" id="a-high-name">—</div></div>
+    <div class="stat-card"><div class="stat-label">BIN VS AUCTION</div><div class="stat-value" id="a-bin">—</div><div class="stat-sub">% are BIN</div></div>
+  </div>
+
+  <div class="two-col">
+    <div class="chart-card">
+      <div class="chart-header"><span class="chart-title">PRICE DISTRIBUTION</span></div>
+      <div class="chart-area" style="height:240px">
+        <canvas id="ahDistChart" role="img" aria-label="Histogram of auction sale prices">Loading...</canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><span class="chart-title">BIN vs AUCTION SPLIT</span></div>
+      <div class="chart-area" style="height:240px">
+        <canvas id="ahTypeChart" role="img" aria-label="Pie chart of BIN vs auction listings">Loading...</canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header"><span class="chart-title">TOP SELLING ITEMS BY REVENUE</span></div>
+    <div class="chart-area" style="height:280px">
+      <canvas id="ahTopChart" role="img" aria-label="Bar chart of top items by total revenue in ended auctions">Loading...</canvas>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header"><span class="chart-title">RECENT SALES LOG</span></div>
+    <div id="ah-loading" class="loading"><div class="spinner"></div>Fetching ended auctions...</div>
+    <table class="data-table" id="ah-table" style="display:none">
+      <thead>
+        <tr>
+          <th>ITEM</th>
+          <th>PRICE</th>
+          <th>TYPE</th>
+          <th>CATEGORY</th>
+          <th>SOLD AGO</th>
+        </tr>
+      </thead>
+      <tbody id="ah-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ECON CLASSIFIER TAB -->
+<div id="tab-econ" class="section">
+  <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.7">
+    This classifier analyzes Bazaar items and tells you which oligopoly model best describes their market structure — based on spread, volume, and price stability.
+  </div>
+
+  <div id="econ-loading" class="loading"><div class="spinner"></div>Loading Bazaar data for classification...</div>
+  <div id="econ-error" class="error-box" style="display:none"></div>
+
+  <div id="econ-content" style="display:none">
+    <div class="two-col">
+      <div class="chart-card">
+        <div class="chart-header"><span class="chart-title">MARKET STRUCTURE BREAKDOWN</span></div>
+        <div class="legend-row">
+          <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div>Bertrand (price war)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div>Cournot (qty competition)</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div>Monopoly-like</div>
+        </div>
+        <div class="chart-area" style="height:260px">
+          <canvas id="econPieChart" role="img" aria-label="Pie chart of market structure classifications">Loading...</canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><span class="chart-title">SPREAD vs VOLUME (MARKET POWER MAP)</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Low spread + high volume = Bertrand. High spread + low volume = market power.</div>
+        <div class="chart-area" style="height:260px">
+          <canvas id="econScatter" role="img" aria-label="Scatter plot of spread vs volume to classify market power">Loading...</canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header"><span class="chart-title">CLASSIFIED ITEMS</span></div>
+      <table class="data-table" id="econ-table">
+        <thead>
+          <tr>
+            <th>ITEM</th>
+            <th>SPREAD %</th>
+            <th>WEEKLY VOL</th>
+            <th>STRUCTURE</th>
+            <th>INTERPRETATION</th>
+          </tr>
+        </thead>
+        <tbody id="econ-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="econ-info">
+      <strong>How classification works:</strong> Items with bid-ask spread &lt; 2% and high weekly volume are classified as <strong>Bertrand</strong> — sellers are competing aggressively on price down to marginal cost. Items with spread &gt; 10% have significant market power — either Cournot-like quantity coordination or near-monopoly conditions. Items in between show mixed characteristics.
+    </div>
+  </div>
+</div>
+
+<!-- API GUIDE TAB -->
+<div id="tab-learn" class="section">
+  <div style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.7">
+    A walkthrough of every Hypixel Skyblock API endpoint used in this dashboard. Use these in your own Python, JS, or R projects.
+  </div>
+
+  <div class="api-block">
+    <h3>ENDPOINT 1 — BAZAAR SNAPSHOT</h3>
+    <div class="api-url">GET https://api.hypixel.net/v2/skyblock/bazaar</div>
+    <div class="api-desc">
+      Returns the full live order book for every Bazaar item. Updates every ~60 seconds. No API key required.<br><br>
+      Key fields per item: <span class="inline-code">quick_status.buyPrice</span>, <span class="inline-code">quick_status.sellPrice</span>, <span class="inline-code">quick_status.buyVolume</span>, <span class="inline-code">quick_status.sellVolume</span>, <span class="inline-code">quick_status.buyMovingWeek</span><br><br>
+      <strong style="color:var(--text)">What to practice:</strong> Bid-ask spread calculation, volume-weighted price analysis, time series if you poll repeatedly, Bertrand market detection.
+    </div>
+  </div>
+
+  <div class="api-block">
+    <h3>ENDPOINT 2 — ENDED AUCTIONS</h3>
+    <div class="api-url">GET https://api.hypixel.net/v2/skyblock/auctions_ended</div>
+    <div class="api-desc">
+      Returns the last ~150 completed AH sales (refreshes every 60s). No API key required. This is the cleanest dataset — real transaction prices, not just listings.<br><br>
+      Key fields: <span class="inline-code">item_name</span>, <span class="inline-code">price</span>, <span class="inline-code">bin</span> (true = BIN sale), <span class="inline-code">timestamp</span>, <span class="inline-code">category</span><br><br>
+      <strong style="color:var(--text)">What to practice:</strong> Price distribution analysis, BIN vs auction premium, item-level demand curves, Cournot equilibrium detection via price stability.
+    </div>
+  </div>
+
+  <div class="api-block">
+    <h3>ENDPOINT 3 — LIVE AUCTIONS (paginated)</h3>
+    <div class="api-url">GET https://api.hypixel.net/v2/skyblock/auctions?page=0</div>
+    <div class="api-desc">
+      All active AH listings, paginated (~1000 per page, ~50+ pages). Requires iteration. No API key required for basic access.<br><br>
+      Key fields: <span class="inline-code">item_name</span>, <span class="inline-code">starting_bid</span>, <span class="inline-code">highest_bid_amount</span>, <span class="inline-code">bin</span>, <span class="inline-code">end</span>, <span class="inline-code">tier</span><br><br>
+      <strong style="color:var(--text)">What to practice:</strong> Web scraping at scale, supply-side quantity analysis, listing price vs. final price comparison (Cournot quantity theory).
+    </div>
+  </div>
+
+  <div class="api-block">
+    <h3>PYTHON STARTER — BAZAAR ANALYSIS</h3>
+    <div class="api-url" style="color:var(--muted);white-space:pre;overflow-x:auto;font-size:11px;line-height:1.8">import requests
+import pandas as pd
+
+r = requests.get("https://api.hypixel.net/v2/skyblock/bazaar")
+data = r.json()["products"]
+
+rows = []
+for item_id, item in data.items():
+    qs = item["quick_status"]
+    buy  = qs.get("buyPrice", 0)
+    sell = qs.get("sellPrice", 0)
+    spread = ((buy - sell) / sell * 100) if sell > 0 else 0
+    rows.append({
+        "item": item_id,
+        "buy_price": buy,
+        "sell_price": sell,
+        "spread_pct": round(spread, 2),
+        "weekly_volume": qs.get("buyMovingWeek", 0),
+    })
+
+df = pd.DataFrame(rows).sort_values("weekly_volume", ascending=False)
+
+# Classify market structure
+def classify(row):
+    if row.spread_pct < 2 and row.weekly_volume > 100000:
+        return "Bertrand"
+    elif row.spread_pct > 10:
+        return "Monopoly-like"
+    else:
+        return "Cournot"
+
+df["market_structure"] = df.apply(classify, axis=1)
+print(df.head(20))</div>
+  </div>
+
+  <div class="api-block">
+    <h3>ANALYSIS IDEAS TO BUILD NEXT</h3>
+    <div class="api-desc" style="line-height:2">
+      <strong style="color:var(--text)">1. Price alert bot</strong> — poll Bazaar every 60s, alert when spread widens suddenly (signals supply shock or manipulation attempt)<br>
+      <strong style="color:var(--text)">2. Cournot equilibrium tracker</strong> — for AH items, track how listing count affects final sale price over time<br>
+      <strong style="color:var(--text)">3. Inflation dashboard</strong> — track a basket of goods over weeks; Skyblock has persistent coin inflation you can measure<br>
+      <strong style="color:var(--text)">4. Arbitrage scanner</strong> — compare Bazaar sell price vs AH BIN price for the same item; gaps are arbitrage windows<br>
+      <strong style="color:var(--text)">5. Demand elasticity estimator</strong> — for items with volatile prices, regress price change vs volume change to estimate elasticity<br>
+      <strong style="color:var(--text)">6. Market power index</strong> — build a Lerner index (P − MC)/P for each Bazaar item using estimated MC from recipe data
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+let bazaarData = null;
+let auctionData = null;
+let bazChart, spreadChart, ahDistChart, ahTypeChart, ahTopChart, econPieChart, econScatter;
+let allBazItems = [];
+let allAHItems = [];
+
+const CORS = 'https://api.allorigins.win/get?url=';
+const BAZ_URL = 'https://api.hypixel.net/v2/skyblock/bazaar';
+const AH_URL  = 'https://api.hypixel.net/v2/skyblock/auctions_ended';
+
+function setStatus(ok, text) {
+  const el = document.getElementById('api-status');
+  el.textContent = text;
+  el.className = 'status-pill' + (ok ? ' live' : '');
+}
+
+function setLastUpdate() {
+  document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+}
+
+function fmt(n) {
+  if (n >= 1e9) return (n/1e9).toFixed(1)+'B';
+  if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1)+'K';
+  return Math.round(n).toLocaleString();
+}
+
+function fmtCoins(n) { return fmt(n) + 'c'; }
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  return Math.floor(s/3600) + 'h ago';
+}
+
+function classifyMarket(spread, vol) {
+  if (spread < 2 && vol > 50000) return 'bertrand';
+  if (spread > 10 || vol < 1000) return 'mono';
+  return 'cournot';
+}
+
+function marketLabel(type) {
+  if (type === 'bertrand') return '<span class="tag tag-bertrand">BERTRAND</span>';
+  if (type === 'cournot')  return '<span class="tag tag-cournot">COURNOT</span>';
+  return '<span class="tag tag-mono">MONOPOLY-LIKE</span>';
+}
+
+function marketInterp(type, spread) {
+  if (type === 'bertrand') return 'Price war, near-MC pricing';
+  if (type === 'cournot')  return 'Qty competition, above-MC profit';
+  return 'Market power, ' + spread.toFixed(1) + '% spread';
+}
+
+async function fetchJSON(url) {
+  const proxyUrl = CORS + encodeURIComponent(url);
+  const r = await fetch(proxyUrl);
+  const wrapper = await r.json();
+  return JSON.parse(wrapper.contents);
+}
+
+async function loadBazaar() {
+  document.getElementById('baz-loading').style.display = 'flex';
+  document.getElementById('baz-table').style.display = 'none';
+  document.getElementById('baz-error').style.display = 'none';
+  setStatus(false, 'LOADING...');
+
+  try {
+    const data = await fetchJSON(BAZ_URL);
+    if (!data.success) throw new Error('API returned failure');
+    bazaarData = data;
+    processBazaar(data);
+    setStatus(true, 'LIVE');
+    setLastUpdate();
+  } catch(e) {
+    document.getElementById('baz-error').style.display = 'block';
+    document.getElementById('baz-error').textContent = 'Failed to load: ' + e.message + '. Check your internet connection. CORS proxy may be rate-limited — try again in 30s.';
+    document.getElementById('baz-loading').style.display = 'none';
+    setStatus(false, 'ERROR');
+  }
+}
+
+function processBazaar(data) {
+  const products = data.products;
+  const items = [];
+
+  for (const [id, product] of Object.entries(products)) {
+    const qs = product.quick_status;
+    if (!qs) continue;
+    const buy  = qs.buyPrice  || 0;
+    const sell = qs.sellPrice || 0;
+    if (buy === 0 && sell === 0) continue;
+    const spread = sell > 0 ? ((buy - sell) / sell * 100) : 0;
+    const vol = qs.buyMovingWeek || 0;
+    const name = id.replace(/_/g,' ');
+    items.push({ id, name, buy, sell, spread, vol, type: classifyMarket(spread, vol) });
+  }
+
+  allBazItems = items;
+  filterBazaar();
+
+  const avgSpread = items.reduce((a,b) => a + b.spread, 0) / items.length;
+  const maxVol = items.reduce((a,b) => b.vol > a.vol ? b : a, items[0]);
+  const maxSpr = items.reduce((a,b) => b.spread > a.spread ? b : a, items[0]);
+
+  document.getElementById('s-items').textContent = items.length;
+  document.getElementById('s-spread').textContent = avgSpread.toFixed(1) + '%';
+  document.getElementById('s-hvol').textContent = fmt(maxVol.vol);
+  document.getElementById('s-hvol-name').textContent = maxVol.name.slice(0,24);
+  document.getElementById('s-wsp').textContent = maxSpr.spread.toFixed(0) + '%';
+  document.getElementById('s-wsp-name').textContent = maxSpr.name.slice(0,24);
+
+  buildBazCharts(items);
+}
+
+function filterBazaar() {
+  if (!allBazItems.length) return;
+  const q = document.getElementById('baz-search').value.toLowerCase();
+  const sort = document.getElementById('baz-sort').value;
+
+  let items = allBazItems.filter(i => i.name.toLowerCase().includes(q) || i.id.toLowerCase().includes(q));
+
+  if (sort === 'volume')   items.sort((a,b) => b.vol - a.vol);
+  if (sort === 'spread')   items.sort((a,b) => b.spread - a.spread);
+  if (sort === 'price')    items.sort((a,b) => b.buy - a.buy);
+  if (sort === 'movement') items.sort((a,b) => b.spread - a.spread);
+
+  const tbody = document.getElementById('baz-tbody');
+  tbody.innerHTML = items.slice(0, 100).map(i => `
+    <tr>
+      <td style="font-weight:500">${i.name.slice(0,32)}</td>
+      <td class="up">${fmtCoins(i.buy)}</td>
+      <td class="down">${fmtCoins(i.sell)}</td>
+      <td class="${i.spread > 5 ? 'up' : 'neutral'}">${i.spread.toFixed(2)}%</td>
+      <td>${fmt(i.vol)}</td>
+      <td>${marketLabel(i.type)}</td>
+    </tr>`).join('');
+
+  document.getElementById('baz-loading').style.display = 'none';
+  document.getElementById('baz-table').style.display = 'table';
+}
+
+function buildBazCharts(items) {
+  const top20 = [...items].sort((a,b) => b.vol - a.vol).slice(0, 20);
+  const labels = top20.map(i => i.name.slice(0,18));
+
+  if (bazChart) bazChart.destroy();
+  bazChart = new Chart(document.getElementById('bazChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Buy price', data: top20.map(i => i.buy),  backgroundColor: 'rgba(124,106,247,0.7)', borderColor: '#7c6af7', borderWidth: 1 },
+        { label: 'Sell price', data: top20.map(i => i.sell), backgroundColor: 'rgba(62,207,142,0.7)',  borderColor: '#3ecf8e', borderWidth: 1 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#6b7280', font: { size: 10 }, maxRotation: 45 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#6b7280', font: { size: 11 }, callback: v => fmt(v) }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+
+  const spread20 = [...items].sort((a,b) => b.spread - a.spread).slice(0,30);
+  if (spreadChart) spreadChart.destroy();
+  spreadChart = new Chart(document.getElementById('spreadChart'), {
+    type: 'bar',
+    data: {
+      labels: spread20.map(i => i.name.slice(0,16)),
+      datasets: [{ label: 'Spread %', data: spread20.map(i => +i.spread.toFixed(2)), backgroundColor: spread20.map(i => i.spread < 2 ? 'rgba(239,68,68,0.7)' : i.spread > 10 ? 'rgba(245,158,11,0.7)' : 'rgba(124,106,247,0.7)'), borderWidth: 0 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#6b7280', font: { size: 10 }, maxRotation: 45 }, grid: { display: false } },
+        y: { ticks: { color: '#6b7280', font: { size: 11 }, callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+}
+
+async function loadAuctions() {
+  document.getElementById('ah-loading').style.display = 'flex';
+  document.getElementById('ah-table').style.display = 'none';
+  document.getElementById('ah-error').style.display = 'none';
+
+  try {
+    const data = await fetchJSON(AH_URL);
+    if (!data.success) throw new Error('API failure');
+    auctionData = data;
+    processAuctions(data.auctions || []);
+    setLastUpdate();
+  } catch(e) {
+    document.getElementById('ah-error').style.display = 'block';
+    document.getElementById('ah-error').textContent = 'Failed to load: ' + e.message;
+    document.getElementById('ah-loading').style.display = 'none';
+  }
+}
+
+function processAuctions(auctions) {
+  allAHItems = auctions;
+  filterAH();
+
+  const avg = auctions.reduce((a,b) => a + b.price, 0) / auctions.length;
+  const highest = auctions.reduce((a,b) => b.price > a.price ? b : a, auctions[0]);
+  const binCount = auctions.filter(a => a.bin).length;
+
+  document.getElementById('a-count').textContent = auctions.length;
+  document.getElementById('a-avg').textContent = fmtCoins(avg);
+  document.getElementById('a-high').textContent = fmtCoins(highest.price);
+  document.getElementById('a-high-name').textContent = (highest.item_name || '').slice(0,20);
+  document.getElementById('a-bin').textContent = Math.round(binCount/auctions.length*100) + '%';
+
+  buildAHCharts(auctions);
+}
+
+function filterAH() {
+  if (!allAHItems.length) return;
+  const q = document.getElementById('ah-search').value.toLowerCase();
+  const type = document.getElementById('ah-filter').value;
+
+  let items = allAHItems.filter(i => {
+    const nameMatch = (i.item_name || '').toLowerCase().includes(q);
+    const typeMatch = type === 'all' || (type === 'bin' && i.bin) || (type === 'auction' && !i.bin);
+    return nameMatch && typeMatch;
+  });
+
+  const tbody = document.getElementById('ah-tbody');
+  tbody.innerHTML = items.slice(0,80).map(i => `
+    <tr>
+      <td style="font-weight:500">${(i.item_name||'Unknown').slice(0,36)}</td>
+      <td class="up">${fmtCoins(i.price)}</td>
+      <td><span class="tag ${i.bin?'tag-cournot':'tag-bertrand'}">${i.bin?'BIN':'AUCTION'}</span></td>
+      <td>${i.category||'—'}</td>
+      <td class="neutral">${timeAgo(i.timestamp)}</td>
+    </tr>`).join('');
+
+  document.getElementById('ah-loading').style.display = 'none';
+  document.getElementById('ah-table').style.display = 'table';
+}
+
+function buildAHCharts(auctions) {
+  const prices = auctions.map(a => a.price).sort((a,b) => a-b);
+  const buckets = 12;
+  const min = prices[0], max = prices[prices.length-1];
+  const step = (max - min) / buckets;
+  const histLabels = [], histData = [];
+  for (let i = 0; i < buckets; i++) {
+    const lo = min + i*step, hi = lo + step;
+    histLabels.push(fmt(lo));
+    histData.push(prices.filter(p => p >= lo && p < hi).length);
+  }
+
+  if (ahDistChart) ahDistChart.destroy();
+  ahDistChart = new Chart(document.getElementById('ahDistChart'), {
+    type: 'bar',
+    data: { labels: histLabels, datasets: [{ label: 'Sales', data: histData, backgroundColor: 'rgba(124,106,247,0.7)', borderWidth: 0 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#6b7280', font: { size: 10 }, maxRotation: 45 }, grid: { display: false } },
+        y: { ticks: { color: '#6b7280', font: { size: 11 } }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+
+  const binC = auctions.filter(a => a.bin).length;
+  const aucC = auctions.length - binC;
+  if (ahTypeChart) ahTypeChart.destroy();
+  ahTypeChart = new Chart(document.getElementById('ahTypeChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['BIN', 'Auction'],
+      datasets: [{ data: [binC, aucC], backgroundColor: ['rgba(124,106,247,0.8)', 'rgba(239,68,68,0.8)'], borderWidth: 0 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: d => d.label + ': ' + d.raw + ' (' + Math.round(d.raw/auctions.length*100) + '%)' } } },
+      cutout: '60%'
+    }
+  });
+
+  const byItem = {};
+  auctions.forEach(a => {
+    const n = (a.item_name || 'Unknown').slice(0,24);
+    byItem[n] = (byItem[n] || 0) + a.price;
+  });
+  const topItems = Object.entries(byItem).sort((a,b) => b[1]-a[1]).slice(0,15);
+
+  if (ahTopChart) ahTopChart.destroy();
+  ahTopChart = new Chart(document.getElementById('ahTopChart'), {
+    type: 'bar',
+    data: {
+      labels: topItems.map(i => i[0]),
+      datasets: [{ label: 'Total revenue', data: topItems.map(i => i[1]), backgroundColor: 'rgba(62,207,142,0.7)', borderColor: '#3ecf8e', borderWidth: 1 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#6b7280', font: { size: 10 }, maxRotation: 45 }, grid: { display: false } },
+        y: { ticks: { color: '#6b7280', font: { size: 11 }, callback: v => fmt(v) + 'c' }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+}
+
+async function loadEcon() {
+  document.getElementById('econ-loading').style.display = 'flex';
+  document.getElementById('econ-content').style.display = 'none';
+  document.getElementById('econ-error').style.display = 'none';
+
+  try {
+    let data = bazaarData;
+    if (!data) {
+      data = await fetchJSON(BAZ_URL);
+      bazaarData = data;
+    }
+    processEcon(data);
+  } catch(e) {
+    document.getElementById('econ-error').style.display = 'block';
+    document.getElementById('econ-error').textContent = 'Failed: ' + e.message;
+    document.getElementById('econ-loading').style.display = 'none';
+  }
+}
+
+function processEcon(data) {
+  const items = [];
+  for (const [id, product] of Object.entries(data.products)) {
+    const qs = product.quick_status;
+    if (!qs) continue;
+    const buy = qs.buyPrice || 0, sell = qs.sellPrice || 0;
+    if (!sell) continue;
+    const spread = ((buy - sell) / sell * 100);
+    const vol = qs.buyMovingWeek || 0;
+    items.push({ id, name: id.replace(/_/g,' '), spread, vol, type: classifyMarket(spread, vol) });
+  }
+
+  const counts = { bertrand: 0, cournot: 0, mono: 0 };
+  items.forEach(i => counts[i.type]++);
+
+  if (econPieChart) econPieChart.destroy();
+  econPieChart = new Chart(document.getElementById('econPieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Bertrand', 'Cournot', 'Monopoly-like'],
+      datasets: [{ data: [counts.bertrand, counts.cournot, counts.mono], backgroundColor: ['rgba(239,68,68,0.8)','rgba(124,106,247,0.8)','rgba(245,158,11,0.8)'], borderWidth: 0 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      cutout: '55%'
+    }
+  });
+
+  const sample = items.filter(i => i.vol > 0).sort(() => Math.random()-0.5).slice(0,80);
+  if (econScatter) econScatter.destroy();
+  econScatter = new Chart(document.getElementById('econScatter'), {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { label: 'Bertrand', data: sample.filter(i=>i.type==='bertrand').map(i=>({x:Math.log10(i.vol+1),y:+i.spread.toFixed(2)})), backgroundColor: 'rgba(239,68,68,0.7)', pointRadius: 4 },
+        { label: 'Cournot',  data: sample.filter(i=>i.type==='cournot').map(i=>({x:Math.log10(i.vol+1),y:+i.spread.toFixed(2)})),  backgroundColor: 'rgba(124,106,247,0.7)', pointRadius: 4 },
+        { label: 'Monopoly', data: sample.filter(i=>i.type==='mono').map(i=>({x:Math.log10(i.vol+1),y:+i.spread.toFixed(2)})),  backgroundColor: 'rgba(245,158,11,0.7)', pointRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display: true, text: 'log(weekly volume)', color: '#6b7280', font:{size:10} }, ticks: { color: '#6b7280', font:{size:10} }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { title: { display: true, text: 'spread %', color: '#6b7280', font:{size:10} }, ticks: { color: '#6b7280', font:{size:10} }, grid: { color: 'rgba(255,255,255,0.04)' } }
+      }
+    }
+  });
+
+  const tbody = document.getElementById('econ-tbody');
+  const sorted = [...items].sort((a,b) => b.vol - a.vol).slice(0,60);
+  tbody.innerHTML = sorted.map(i => `
+    <tr>
+      <td style="font-weight:500">${i.name.slice(0,30)}</td>
+      <td class="${i.spread<2?'up':i.spread>10?'down':'neutral'}">${i.spread.toFixed(2)}%</td>
+      <td>${fmt(i.vol)}</td>
+      <td>${marketLabel(i.type)}</td>
+      <td style="color:var(--muted);font-size:11px">${marketInterp(i.type, i.spread)}</td>
+    </tr>`).join('');
+
+  document.getElementById('econ-loading').style.display = 'none';
+  document.getElementById('econ-content').style.display = 'block';
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'econ') loadEcon();
+}
+
+loadBazaar();
+setTimeout(loadAuctions, 800);
+</script>
+</body>
+</html>
